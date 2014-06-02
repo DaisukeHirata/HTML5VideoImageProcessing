@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Video Frames</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+      #movieclip {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>Avoid cross domain security error. $ http-server -p 8000 </header>
+    <canvas id="canvas" width="600" height="360"></canvas>
+    <input id="numLevels" type="range" value="4" min="1" max="32" step="1"/>
+
+    <video id="movieclip" width="640" height="360" autoplay>
+      <source src="./assets/movieclip.mp4" type="video/mp4"/>
+      <source src="./assets/movieclip.webm" type="video/webm"/>
+      <source src="./assets/movieclip.ogv" type="video/ogg"/>
+    </video>
+  
+    <script src="utils.js"></script>
+    <script src="Stats.js"></script>
+    <script>
+    window.onload = function () {
+
+      var canvas = document.getElementById('canvas'),
+          context = canvas.getContext('2d'),
+          copyCanvas = createCopyCanvas(canvas),
+          copyContext = copyCanvas.getContext('2d'),
+          video = document.getElementById('movieclip'),
+          stats = Stat.initStats();
+
+      function createCopyCanvas (canvas) {
+        var copy = document.createElement('canvas');
+        copy.width = canvas.width;
+        copy.height = canvas.height;
+        return copy;
+      }
+
+      function posterize (imageData, numLevels) {
+
+        var pixels     = imageData.data,
+            h  = imageData.height,
+            w  = imageData.width,
+            w4 = w*4,
+            numLevels = Math.max(2,Math.min(256,numLevels)),
+            numAreas = 256 / numLevels,
+            numValues = 256 / (numLevels-1);
+
+
+        for (var y = h; y > 0; y--) {
+
+          var offsetY = (y-1)*w4;
+
+          for (var x = w; x > 0; x--) {
+
+            var offset = offsetY + (x-1)*4;
+
+            var r = numValues * ((pixels[offset] / numAreas)>>0);
+            var g = numValues * ((pixels[offset+1] / numAreas)>>0);
+            var b = numValues * ((pixels[offset+2] / numAreas)>>0);
+
+            if (r > 255) r = 255;
+            if (g > 255) g = 255;
+            if (b > 255) b = 255;
+
+            pixels[offset] = r;
+            pixels[offset+1] = g;
+            pixels[offset+2] = b;            
+
+          }
+        }
+      }
+
+      var callCount = 0;
+      (function drawFrame () {
+
+        stats.begin();
+
+        window.requestAnimationFrame(drawFrame, canvas);
+        copyContext.drawImage(video, 0, 0);
+
+        var imageData       = copyContext.getImageData(0, 0, canvas.width, canvas.height),
+            copiedImageData = copyContext.getImageData(0, 0, canvas.width, canvas.height),
+            numLevels = parseInt(document.getElementById('numLevels').value, 10) || 1;
+
+        posterize(imageData, numLevels);
+
+        context.putImageData(imageData, 0, 0);
+
+        stats.end();
+
+      }());
+    };
+    </script>
+  </body>
+</html>

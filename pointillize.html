@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Video Frames</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+      #movieclip {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>Avoid cross domain security error. $ http-server -p 8000 </header>
+    <canvas id="canvas" width="600" height="360"></canvas>
+    <input id="radius" type="range" value="5" min="1" max="20" step="1"/>
+    <input id="density" type="range" value="0.75" min="0" max="5.0" step="0.1"/>
+    <input id="noise" type="range" value="0.8" min="0.0" max="2.0" step="0.1"/>
+    <input id="transparent" type="checkbox"/>
+
+    <video id="movieclip" width="640" height="360" autoplay>
+      <source src="./assets/movieclip.mp4" type="video/mp4"/>
+      <source src="./assets/movieclip.webm" type="video/webm"/>
+      <source src="./assets/movieclip.ogv" type="video/ogg"/>
+    </video>
+  
+    <script src="utils.js"></script>
+    <script src="Stats.js"></script>
+    <script>
+    window.onload = function () {
+
+      var canvas = document.getElementById('canvas'),
+          context = canvas.getContext('2d'),
+          copyCanvas = createCopyCanvas(canvas),
+          copyContext = copyCanvas.getContext('2d'),
+          video = document.getElementById('movieclip'),
+          stats = Stat.initStats();
+
+      function createCopyCanvas (canvas) {
+        var copy = document.createElement('canvas');
+        copy.width = canvas.width;
+        copy.height = canvas.height;
+        return copy;
+      }
+
+      function pointillize (context, copyContext, radius, density, noise, transparent) {
+
+        radius = Math.max(1, radius);
+        density = Math.min(5, density);
+        noise = Math.max(0, noise);
+
+        var h  = canvas.height,
+            w  = canvas.width,
+            w4 = w*4,
+            diameter = radius * 2,
+            noiseRadius = radius * noise,
+            dist = 1 / density;
+
+        if (transparent) {
+          context.clearRect(0, 0, w, h);
+          context.drawImage(
+            copyCanvas,
+            0, 0, w, h,
+            0, 0, w, h
+          );
+        }
+
+        for (var y = 0; y < h+radius; y += diameter * dist) {
+          for (var x = 0; x < w+radius; x += diameter * dist) {
+
+            rndX = noise ? (x+((Math.random()*2-1) * noiseRadius))>>0 : x;
+            rndY = noise ? (y+((Math.random()*2-1) * noiseRadius))>>0 : y;
+
+            var pixX = rndX - radius;
+            var pixY = rndY - radius;
+            if (pixX < 0) pixX = 0;
+            if (pixY < 0) pixY = 0;
+
+            var cx = rndX + 0;
+            var cy = rndY + 0;
+            if (cx < 0) cx = 0;
+            if (cx > w) cx = w;
+            if (cy < 0) cy = 0;
+            if (cy > h) cy = h;
+
+            var diameterX = diameter;
+            var diameterY = diameter;
+
+            if (diameterX + pixX > w)
+              diameterX = w - pixX;
+            if (diameterY + pixY > h)
+              diameterY = h - pixY;
+            if (diameterX < 1) diameterX = 1;
+            if (diameterY < 1) diameterY = 1;
+
+            var data = copyContext.getImageData(pixX, pixY, diameterX, diameterY).data;
+
+            context.fillStyle = "rgb(" + data[0] + "," + data[1] + "," + data[2] + ")";
+            context.beginPath();
+            context.arc(cx, cy, radius, 0, Math.PI*2, true);
+            context.closePath();
+            context.fill();            
+          }
+        }
+      }
+
+      (function drawFrame () {
+
+        stats.begin();
+
+        window.requestAnimationFrame(drawFrame, canvas);
+        copyContext.drawImage(video, 0, 0);
+
+        var radius = parseInt(document.getElementById('radius').value, 10) || 1,
+            density = parseFloat(document.getElementById('density').value, 10) || 0.0,
+            noise = parseFloat(document.getElementById('noise').value, 10) || 0.0,
+            transparent = document.getElementById('transparent').checked;
+
+        pointillize(context, copyContext, radius, density, noise, transparent);
+
+        stats.end();
+
+      }());
+
+    };
+    </script>
+  </body>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Video Frames</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+      #movieclip {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>Avoid cross domain security error. $ http-server -p 8000 </header>
+    <canvas id="canvas" width="600" height="360"></canvas>
+    <input id="amount" type="range" min="0.0" max="1.5" step="0.1"/>
+    <aside>Video file may take a moment to load.</aside>
+
+    <video id="movieclip" width="640" height="360" autoplay>
+      <source src="./assets/movieclip.mp4" type="video/mp4"/>
+      <source src="./assets/movieclip.webm" type="video/webm"/>
+      <source src="./assets/movieclip.ogv" type="video/ogg"/>
+    </video>
+  
+    <script src="utils.js"></script>
+    <script src="Stats.js"></script>
+    <script>
+    window.onload = function () {
+
+      var canvas = document.getElementById('canvas'),
+          context = canvas.getContext('2d'),
+          video = document.getElementById('movieclip'),
+          stats = Stat.initStats(),
+          scale = 2,
+          smallWidth = Math.round(canvas.width / scale),
+          smallHeight = Math.round(canvas.height / scale),
+          scaledCanvas = createCopyCanvas(smallWidth, smallHeight),
+          scaledContext = scaledCanvas.getContext('2d');
+
+      function createCopyCanvas (width, height) {
+        var copy = document.createElement('canvas');
+        copy.width = width;
+        copy.height = height;
+        return copy;
+      }
+
+      (function drawFrame () {
+
+        stats.begin();
+
+        window.requestAnimationFrame(drawFrame, canvas);
+        context.drawImage(video, 0, 0);
+
+        var amount = parseFloat(document.getElementById('amount').value, 10) || 0.0,
+        amount = Math.max(0, Math.min(5, amount));
+
+        var steps  = Math.round(amount * 20);
+
+        for (var i = 0; i < steps; i++) {
+          var scaledWidth  = Math.max(1, Math.round(smallWidth - i));
+          var scaledHeight = Math.max(1, Math.round(smallHeight - i));
+    
+          scaledContext.clearRect(0,0,smallWidth,smallHeight);
+
+          scaledContext.drawImage(
+            canvas,
+            0, 0, canvas.width, canvas.height,
+            0, 0, scaledWidth,  scaledHeight
+          );
+    
+          context.drawImage(
+            scaledCanvas,
+            0, 0, scaledWidth,  scaledHeight,
+            0, 0, canvas.width, canvas.height
+          );
+
+        }
+
+        stats.end();
+
+      }());
+    };
+    </script>
+  </body>
+</html>

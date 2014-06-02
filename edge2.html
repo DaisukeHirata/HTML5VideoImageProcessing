@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Video Frames</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+      #movieclip {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>Avoid cross domain security error. $ http-server -p 8000 </header>
+    <canvas id="canvas" width="600" height="360"></canvas>
+    <input id="convolution_additional_value" type="range" value="127" min="0" max="255" step="1"/>
+
+    <video id="movieclip" width="640" height="360" autoplay>
+      <source src="./assets/movieclip.mp4" type="video/mp4"/>
+      <source src="./assets/movieclip.webm" type="video/webm"/>
+      <source src="./assets/movieclip.ogv" type="video/ogg"/>
+    </video>
+  
+    <script src="utils.js"></script>
+    <script src="Stats.js"></script>
+    <script>
+    window.onload = function () {
+
+      var canvas = document.getElementById('canvas'),
+          context = canvas.getContext('2d'),
+          copyCanvas = createCopyCanvas(canvas),
+          copyContext = copyCanvas.getContext('2d'),
+          video = document.getElementById('movieclip'),
+          stats = Stat.initStats();
+
+      function createCopyCanvas (canvas) {
+        var copy = document.createElement('canvas');
+        copy.width = canvas.width;
+        copy.height = canvas.height;
+        return copy;
+      }
+
+      function edge2 (imageData, copiedImageData, convolutionAdditionalValue) {
+
+        var pixels     = imageData.data,
+            pixelsCopy = copiedImageData.data,
+            h  = imageData.height,
+            w  = imageData.width,
+            w4 = w * 4,
+            pixel = w4 + 4, // Start at (1,1)
+            hm1 = h - 1,
+            wm1 = w - 1;
+
+        for (var y = 1; y < hm1; ++y) {
+          // Prepare initial cached values for current row
+          var centerRow = pixel - 4;
+          var priorRow = centerRow - w4;
+          var nextRow = centerRow + w4;
+          
+          var r1 = - pixelsCopy[priorRow]   - pixelsCopy[centerRow]   - pixelsCopy[nextRow];
+          var g1 = - pixelsCopy[++priorRow] - pixelsCopy[++centerRow] - pixelsCopy[++nextRow];
+          var b1 = - pixelsCopy[++priorRow] - pixelsCopy[++centerRow] - pixelsCopy[++nextRow];
+          
+          var rp = pixelsCopy[priorRow += 2];
+          var gp = pixelsCopy[++priorRow];
+          var bp = pixelsCopy[++priorRow];
+          
+          var rc = pixelsCopy[centerRow += 2];
+          var gc = pixelsCopy[++centerRow];
+          var bc = pixelsCopy[++centerRow];
+          
+          var rn = pixelsCopy[nextRow += 2];
+          var gn = pixelsCopy[++nextRow];
+          var bn = pixelsCopy[++nextRow];
+          
+          var r2 = - rp - rc - rn;
+          var g2 = - gp - gc - gn;
+          var b2 = - bp - bc - bn;
+          
+          // Main convolution loop
+          for (var x = 1; x < wm1; ++x) {
+            centerRow = pixel + 4;
+            priorRow = centerRow - w4;
+            nextRow = centerRow + w4;
+            
+            var r = convolutionAdditionalValue + r1 - rp - (rc * -8) - rn;
+            var g = convolutionAdditionalValue + g1 - gp - (gc * -8) - gn;
+            var b = convolutionAdditionalValue + b1 - bp - (bc * -8) - bn;
+            
+            r1 = r2;
+            g1 = g2;
+            b1 = b2;
+            
+            rp = pixelsCopy[  priorRow];
+            gp = pixelsCopy[++priorRow];
+            bp = pixelsCopy[++priorRow];
+            
+            rc = pixelsCopy[  centerRow];
+            gc = pixelsCopy[++centerRow];
+            bc = pixelsCopy[++centerRow];
+            
+            rn = pixelsCopy[  nextRow];
+            gn = pixelsCopy[++nextRow];
+            bn = pixelsCopy[++nextRow];
+            
+            r += (r2 = - rp - rc - rn);
+            g += (g2 = - gp - gc - gn);
+            b += (b2 = - bp - bc - bn);
+
+            if (r > 255) r = 255;
+            if (g > 255) g = 255;
+            if (b > 255) b = 255;
+            if (r < 0) r = 0;
+            if (g < 0) g = 0;
+            if (b < 0) b = 0;
+
+            pixels[pixel] = r;
+            pixels[++pixel] = g;
+            pixels[++pixel] = b;
+            //pixels[++pixel] = 255; // alpha
+
+            pixel+=2;
+          }
+          pixel += 8;
+        }
+      }
+
+      (function drawFrame () {
+
+        stats.begin();
+
+        window.requestAnimationFrame(drawFrame, canvas);
+        copyContext.drawImage(video, 0, 0);
+
+        var imageData       = copyContext.getImageData(0, 0, canvas.width, canvas.height),
+            copiedImageData = copyContext.getImageData(0, 0, canvas.width, canvas.height),
+            convolutionAdditionalValue = parseInt(document.getElementById('convolution_additional_value').value, 10) || 0;
+
+        edge2(imageData, copiedImageData, convolutionAdditionalValue);
+
+        context.putImageData(imageData, 0, 0);
+
+        stats.end();
+
+      }());
+    };
+    </script>
+  </body>
+</html>

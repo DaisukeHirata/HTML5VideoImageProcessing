@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Video Frames</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+      #movieclip {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>Avoid cross domain security error. $ http-server -p 8000 </header>
+    <canvas id="canvas" width="600" height="360"></canvas>
+    <aside>Video file may take a moment to load.</aside>
+
+    <video id="movieclip" width="640" height="360" autoplay>
+      <source src="./assets/movieclip.mp4" type="video/mp4"/>
+      <source src="./assets/movieclip.webm" type="video/webm"/>
+      <source src="./assets/movieclip.ogv" type="video/ogg"/>
+    </video>
+  
+    <script src="utils.js"></script>
+    <script src="Stats.js"></script>
+    <script>
+    window.onload = function () {
+
+      var canvas = document.getElementById('canvas'),
+          context = canvas.getContext('2d'),
+          video = document.getElementById('movieclip'),
+          mouse = utils.captureMouse(canvas);
+          stats = new Stats();
+
+      stats.setMode(0); // 0: fps, 1: ms
+      // align to right
+      stats.domElement.style.position = 'absolute';
+      stats.domElement.style.right = '0px';
+      stats.domElement.style.top = '0px';
+      document.body.appendChild( stats.domElement );
+
+      (function drawFrame () {
+
+        stats.begin();
+
+        window.requestAnimationFrame(drawFrame, canvas);
+        context.drawImage(video, 0, 0);
+
+        var imagedata = context.getImageData(0, 0, canvas.width, canvas.height),
+            pixels = imagedata.data;
+
+        //pixel iteration
+        for (var y = 0; y < imagedata.height; y += 1) {
+          for (var x = 0; x < imagedata.width; x += 1) {
+
+            var dx = x - mouse.x,
+                dy = y - mouse.y,
+                dist = Math.sqrt(dx * dx + dy * dy),
+                offset = (x + y * imagedata.width) * 4,
+                r = pixels[offset],
+                g = pixels[offset + 1],
+                b = pixels[offset + 2];
+
+            pixels[offset]     = Math.cos(dist/100) * r;
+            pixels[offset + 1] = Math.sin(dist/100) * g;
+            pixels[offset + 2] = Math.cos(dist/100) * b;
+          }
+        }
+
+        context.putImageData(imagedata, 0, 0);
+
+        stats.end();
+      }());
+    };
+    </script>
+  </body>
+</html>
