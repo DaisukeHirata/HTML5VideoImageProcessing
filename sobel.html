@@ -13,7 +13,6 @@
   <body>
     <header>Avoid cross domain security error. $ http-server -p 8000 </header>
     <canvas id="canvas" width="600" height="360"></canvas>
-    <aside>Video file may take a moment to load.</aside>
 
     <video id="movieclip" width="640" height="360" autoplay>
       <source src="./assets/movieclip.mp4" type="video/mp4"/>
@@ -41,11 +40,36 @@
 
         var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
-        Filters.grayscale(imageData);
+        var grayscale = Filters.grayscale(imageData);
+
+        var vertical = Filters.convoluteFloat32(grayscale,
+                                                [ -1, 0, 1,
+                                                  -2, 0, 2,
+                                                  -1, 0, 1 ]);
+
+        var horizontal = Filters.convoluteFloat32(grayscale,
+                                                [ -1, -2, -1,
+                                                   0,  0,  0,
+                                                   1,  2,  1 ]); 
+
+        var final_image = Filters.createImageData(vertical.width, vertical.height);
+        for (var i=0; i<final_image.data.length; i+=4) {
+          // make the vertical gradient red
+          var v = Math.abs(vertical.data[i]);
+          final_image.data[i] = v;
+          // make the horizontal gradient green
+          var h = Math.abs(horizontal.data[i]);
+          final_image.data[i+1] = h;
+          // and mix in some blue for aesthetics
+          final_image.data[i+2] = (v+h)/4;
+          final_image.data[i+3] = 255; // opaque alpha
+        }
 
         context.putImageData(imageData, 0, 0);
+        context.putImageData(final_image, 0, 0);
 
         stats.end();
+
       }());
     };
     </script>

@@ -13,7 +13,6 @@
   <body>
     <header>Avoid cross domain security error. $ http-server -p 8000 </header>
     <canvas id="canvas" width="600" height="360"></canvas>
-    <aside>Video file may take a moment to load.</aside>
 
     <video id="movieclip" width="640" height="360" autoplay>
       <source src="./assets/movieclip.mp4" type="video/mp4"/>
@@ -41,11 +40,15 @@
 
         var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
-        Filters.grayscale(imageData);
+        var filteredImageData = Filters.convolute(imageData, 
+                                                  [ 1/9, 1/9, 1/9,
+                                                    1/9, 1/9, 1/9,
+                                                    1/9, 1/9, 1/9 ]);
 
-        context.putImageData(imageData, 0, 0);
+        context.putImageData(filteredImageData, 0, 0);
 
         stats.end();
+
       }());
     };
     </script>

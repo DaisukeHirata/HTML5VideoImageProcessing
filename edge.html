@@ -27,6 +27,7 @@
   
     <script src="utils.js"></script>
     <script src="Stats.js"></script>
+    <script src="Filters.js"></script>
     <script>
     window.onload = function () {
 
@@ -44,117 +45,23 @@
         return copy;
       }
 
-      function edge (imageData, copiedImageData, mono, invert, rWeightNumerator, gWeightNumerator, bWeightNumerator) {
-
-        var pixels     = imageData.data,
-            pixelsCopy = copiedImageData.data,
-            //pixelsCopyBuffer = copiedImageData.data.buffer,
-            //pixelsCopy = new Uint8ClampedArray(pixelsCopyBuffer), 
-            h  = imageData.height,
-            w  = imageData.width,
-            w4 = w*4,
-            c  = -1/8,
-            rWeight = rWeightNumerator/c,
-            gWeight = gWeightNumerator/c,
-            bWeight = bWeightNumerator/c;
-
-
-        for (var y = h; y > 0; y--) {
-
-          var offsetY = (y-1)*w4;
-
-          var prevY = (y == 1) ? 0 : y-2;
-          var nextY = (y == h) ? y - 1 : y;
-
-          var offsetYPrev = prevY*w4;
-          var offsetYNext = nextY*w4;
-
-          for (var x = w; x > 0; x--) {
-
-            var offset = offsetY + (x*4-4);
-            var offsetPrev = offsetYPrev + ((x == 1) ? 0 : x-2) * 4;
-            var offsetNext = offsetYNext + ((x == w) ? x-1 : x) * 4;
-
-            var r = ((pixelsCopy[offsetPrev-4]
-              + pixelsCopy[offsetPrev]
-              + pixelsCopy[offsetPrev+4]
-              + pixelsCopy[offset-4]
-              + pixelsCopy[offset+4]
-              + pixelsCopy[offsetNext-4]
-              + pixelsCopy[offsetNext]
-              + pixelsCopy[offsetNext+4]) * c
-              + pixelsCopy[offset]
-              ) 
-              * rWeight;
-
-            var g = ((pixelsCopy[offsetPrev-3]
-              + pixelsCopy[offsetPrev+1]
-              + pixelsCopy[offsetPrev+5]
-              + pixelsCopy[offset-3]
-              + pixelsCopy[offset+5]
-              + pixelsCopy[offsetNext-3]
-              + pixelsCopy[offsetNext+1]
-              + pixelsCopy[offsetNext+5]) * c
-              + pixelsCopy[offset+1])
-              * gWeight;
-    
-            var b = ((pixelsCopy[offsetPrev-2]
-              + pixelsCopy[offsetPrev+2]
-              + pixelsCopy[offsetPrev+6]
-              + pixelsCopy[offset-2]
-              + pixelsCopy[offset+6]
-              + pixelsCopy[offsetNext-2]
-              + pixelsCopy[offsetNext+2]
-              + pixelsCopy[offsetNext+6]) * c
-              + pixelsCopy[offset+2])
-              * bWeight;
-
-            if (mono) {
-              var brightness = (r*0.3 + g*0.59 + b*0.11)||0;
-              if (invert) brightness = 255 - brightness;
-              if (brightness < 0 ) brightness = 0;
-              if (brightness > 255 ) brightness = 255;
-              r = g = b = brightness;
-            } else {
-              if (invert) {
-                r = 255 - r;
-                g = 255 - g;
-                b = 255 - b;
-              }
-              if (r < 0 ) r = 0;
-              if (g < 0 ) g = 0;
-              if (b < 0 ) b = 0;
-              if (r > 255 ) r = 255;
-              if (g > 255 ) g = 255;
-              if (b > 255 ) b = 255;
-            }
-
-            pixels[offset]   = r;
-            pixels[offset+1] = g;
-            pixels[offset+2] = b;
-          }
-        }
-      }
-
-      var callCount = 0;
       (function drawFrame () {
 
         stats.begin();
 
         window.requestAnimationFrame(drawFrame, canvas);
-        copyContext.drawImage(video, 0, 0);
+        context.drawImage(video, 0, 0);
 
-        var imageData       = copyContext.getImageData(0, 0, canvas.width, canvas.height),
-            copiedImageData = copyContext.getImageData(0, 0, canvas.width, canvas.height),
+        var imageData       = context.getImageData(0, 0, canvas.width, canvas.height),
             mono = document.getElementById('mono').checked,
             invert = document.getElementById('invert').checked,
             rWeight = parseFloat(document.getElementById('r_weight').value, 10) || 0.0,
             gWeight = parseFloat(document.getElementById('g_weight').value, 10) || 0.0,
             bWeight = parseFloat(document.getElementById('b_weight').value, 10) || 0.0;
 
-        edge(imageData, copiedImageData, mono, invert, rWeight, gWeight, bWeight);
+        var edgedImageData = Filters.edge(imageData, mono, invert, rWeight, gWeight, bWeight);
 
-        context.putImageData(imageData, 0, 0);
+        context.putImageData(edgedImageData, 0, 0);
 
         stats.end();
 
