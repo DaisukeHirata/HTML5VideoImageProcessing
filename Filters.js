@@ -148,7 +148,7 @@ Filters.edge	 = function (imageData, mono, invert, rWeightNumerator, gWeightNume
   var output = Filters.createImageData(w, h);
   var dst = output.data;
 
-  for (var y = h; y > 0; y--) {
+  for (var y = 1; y <= h; y++) {
 
     var offsetY = (y-1)*w*4;
 
@@ -158,11 +158,11 @@ Filters.edge	 = function (imageData, mono, invert, rWeightNumerator, gWeightNume
     var offsetYPrev = prevY*w*4;
     var offsetYNext = nextY*w*4;
 
-    for (var x = w; x > 0; x--) {
+    for (var x = 1; x <= w; x++) {
 
       var offset = offsetY + (x*4-4);
       var offsetPrev = offsetYPrev + ((x == 1) ? 0 : x-2) * 4;
-      var offsetNext = offsetYNext + ((x == w) ? x-1 : x) * 4;
+      var offsetNext = offsetYNext + ((x == w) ? x - 1 : x) * 4;
 
       var r = ((src[offsetPrev-4]
         + src[offsetPrev]
@@ -172,8 +172,7 @@ Filters.edge	 = function (imageData, mono, invert, rWeightNumerator, gWeightNume
         + src[offsetNext-4]
         + src[offsetNext]
         + src[offsetNext+4]) * c
-        + src[offset]
-        ) 
+        + src[offset]) 
         * rWeight;
 
       var g = ((src[offsetPrev-3]
@@ -228,94 +227,121 @@ Filters.edge	 = function (imageData, mono, invert, rWeightNumerator, gWeightNume
 };
 
 
-Filters.edgeeee = function (imageData, copiedImageData, mono, invert, rWeightNumerator, gWeightNumerator, bWeightNumerator) {
+Filters.hst = function(imageData, hue, saturation, lightness) {
 
-  var pixels     = imageData.data,
-      pixelsCopy = copiedImageData.data,
-      //pixelsCopyBuffer = copiedImageData.data.buffer,
-      //pixelsCopy = new Uint8ClampedArray(pixelsCopyBuffer), 
-      h  = imageData.height,
-      w  = imageData.width,
-      w4 = w*4,
-      c  = -1/8,
-      rWeight = rWeightNumerator/c,
-      gWeight = gWeightNumerator/c,
-      bWeight = bWeightNumerator/c;
+  hue = (hue % 360) / 360;
+  saturation = saturation / 100;
+  lightness = lightness / 100; 
 
+  var hue6     = hue * 6,
+      satMul   = saturation < 0 ? (1+saturation) : (1+saturation*2), // this seems to give the same result as Photoshop
+      light255 = lightness * 255,
+      lightp1  = 1 + lightness,
+      lightm1  = 1 - lightness;      
+      pixels   = imageData.data;
 
-  for (var y = h; y > 0; y--) {
+  //pixel iteration
+  for (var y = 0; y < imageData.height; y++) {
+    for (var x = 0; x < imageData.width; x++) {
 
-    var offsetY = (y-1)*w4;
+      var offset = (x + y * imageData.width) * 4,
+          r = pixels[offset],
+          g = pixels[offset + 1],
+          b = pixels[offset + 2];
 
-    var prevY = (y == 1) ? 0 : y-2;
-    var nextY = (y == h) ? y - 1 : y;
-
-    var offsetYPrev = prevY*w4;
-    var offsetYNext = nextY*w4;
-
-    for (var x = w; x > 0; x--) {
-
-      var offset = offsetY + (x*4-4);
-      var offsetPrev = offsetYPrev + ((x == 1) ? 0 : x-2) * 4;
-      var offsetNext = offsetYNext + ((x == w) ? x-1 : x) * 4;
-
-      var r = ((pixelsCopy[offsetPrev-4]
-        + pixelsCopy[offsetPrev]
-        + pixelsCopy[offsetPrev+4]
-        + pixelsCopy[offset-4]
-        + pixelsCopy[offset+4]
-        + pixelsCopy[offsetNext-4]
-        + pixelsCopy[offsetNext]
-        + pixelsCopy[offsetNext+4]) * c
-        + pixelsCopy[offset]
-        ) 
-        * rWeight;
-
-      var g = ((pixelsCopy[offsetPrev-3]
-        + pixelsCopy[offsetPrev+1]
-        + pixelsCopy[offsetPrev+5]
-        + pixelsCopy[offset-3]
-        + pixelsCopy[offset+5]
-        + pixelsCopy[offsetNext-3]
-        + pixelsCopy[offsetNext+1]
-        + pixelsCopy[offsetNext+5]) * c
-        + pixelsCopy[offset+1])
-        * gWeight;
-
-      var b = ((pixelsCopy[offsetPrev-2]
-        + pixelsCopy[offsetPrev+2]
-        + pixelsCopy[offsetPrev+6]
-        + pixelsCopy[offset-2]
-        + pixelsCopy[offset+6]
-        + pixelsCopy[offsetNext-2]
-        + pixelsCopy[offsetNext+2]
-        + pixelsCopy[offsetNext+6]) * c
-        + pixelsCopy[offset+2])
-        * bWeight;
-
-      if (mono) {
-        var brightness = (r*0.3 + g*0.59 + b*0.11)||0;
-        if (invert) brightness = 255 - brightness;
-        if (brightness < 0 ) brightness = 0;
-        if (brightness > 255 ) brightness = 255;
-        r = g = b = brightness;
-      } else {
-        if (invert) {
-          r = 255 - r;
-          g = 255 - g;
-          b = 255 - b;
+      if (hue != 0 || saturation != 0) {
+        // ok, here comes rgb to hsl + adjust + hsl to rgb, all in one jumbled mess. 
+        // It's not so pretty, but it's been optimized to get somewhat decent performance.
+        // The transforms were originally adapted from the ones found in Graphics Gems, but have been heavily modified.
+        var vs = r;
+        if (g > vs) vs = g;
+        if (b > vs) vs = b;
+        var ms = r;
+        if (g < ms) ms = g;
+        if (b < ms) ms = b;
+        var vm = (vs-ms);
+        var l = (ms+vs)/510;
+        if (l > 0) {
+          if (vm > 0) {
+            if (l <= 0.5) {
+              var s = vm / (vs+ms) * satMul;
+              if (s > 1) s = 1;
+              var v = (l * (1+s));
+            } else {
+              var s = vm / (510-vs-ms) * satMul;
+              if (s > 1) s = 1;
+              var v = (l+s - l*s);
+            }
+            if (r == vs) {
+              if (g == ms)
+                var h = 5 + ((vs-b)/vm) + hue6;
+              else
+                var h = 1 - ((vs-g)/vm) + hue6;
+            } else if (g == vs) {
+              if (b == ms)
+                var h = 1 + ((vs-r)/vm) + hue6;
+              else
+                var h = 3 - ((vs-b)/vm) + hue6;
+            } else {
+              if (r == ms)
+                var h = 3 + ((vs-g)/vm) + hue6;
+              else
+                var h = 5 - ((vs-r)/vm) + hue6;
+            }
+            if (h < 0) h+=6;
+            if (h >= 6) h-=6;
+            var m = (l+l-v);
+            var sextant = h>>0;
+            if (sextant == 0) {
+              r = v*255; g = (m+((v-m)*(h-sextant)))*255; b = m*255;
+            } else if (sextant == 1) {
+              r = (v-((v-m)*(h-sextant)))*255; g = v*255; b = m*255;
+            } else if (sextant == 2) {
+              r = m*255; g = v*255; b = (m+((v-m)*(h-sextant)))*255;
+            } else if (sextant == 3) {
+              r = m*255; g = (v-((v-m)*(h-sextant)))*255; b = v*255;
+            } else if (sextant == 4) {
+              r = (m+((v-m)*(h-sextant)))*255; g = m*255; b = v*255;
+            } else if (sextant == 5) {
+              r = v*255; g = m*255; b = (v-((v-m)*(h-sextant)))*255;
+            }
+          }
         }
-        if (r < 0 ) r = 0;
-        if (g < 0 ) g = 0;
-        if (b < 0 ) b = 0;
-        if (r > 255 ) r = 255;
-        if (g > 255 ) g = 255;
-        if (b > 255 ) b = 255;
       }
 
-      pixels[offset]   = r;
-      pixels[offset+1] = g;
-      pixels[offset+2] = b;
+      if (lightness < 0) {
+        r *= lightp1;
+        g *= lightp1;
+        b *= lightp1;
+      } else if (lightness > 0) {
+        r = (r * lightm1) + light255;
+        g = (g * lightm1) + light255;
+        b = (b * lightm1) + light255;
+      }
+
+      if (r < 0) 
+        pixels[offset] = 0
+      else if (r > 255)
+        pixels[offset] = 255
+      else
+        pixels[offset] = r;
+
+      if (g < 0) 
+        pixels[offset + 1] = 0
+      else if (g > 255)
+        pixels[offset + 1] = 255
+      else
+        pixels[offset + 1] = g;
+
+      if (b < 0) 
+        pixels[offset + 2] = 0
+      else if (b > 255)
+        pixels[offset + 2] = 255
+      else
+        pixels[offset + 2] = b;
+
     }
   }
-};
+  return imageData;
+}
+

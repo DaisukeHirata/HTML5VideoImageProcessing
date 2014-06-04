@@ -50,16 +50,13 @@
             pixels = imagedata.data;
 
         //pixel iteration
-        for (var y = 0; y < imagedata.height; y += 1) {
-          for (var x = 0; x < imagedata.width; x += 1) {
+        for (var y = 0; y < imagedata.height; y++) {
+          for (var x = 0; x < imagedata.width; x++) {
 
             var dx = x - mouse.x,
                 dy = y - mouse.y,
                 dist = Math.sqrt(dx * dx + dy * dy),
-                offset = (x + y * imagedata.width) * 4,
-                r = pixels[offset],
-                g = pixels[offset + 1],
-                b = pixels[offset + 2];
+                offset = (x + y * imagedata.width) * 4;
 
             if (dist > 50) {
               pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 0;

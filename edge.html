@@ -33,17 +33,8 @@
 
       var canvas = document.getElementById('canvas'),
           context = canvas.getContext('2d'),
-          copyCanvas = createCopyCanvas(canvas),
-          copyContext = copyCanvas.getContext('2d'),
           video = document.getElementById('movieclip'),
           stats = Stat.initStats();
-
-      function createCopyCanvas (canvas) {
-        var copy = document.createElement('canvas');
-        copy.width = canvas.width;
-        copy.height = canvas.height;
-        return copy;
-      }
 
       (function drawFrame () {
 
@@ -53,8 +44,8 @@
         context.drawImage(video, 0, 0);
 
         var imageData       = context.getImageData(0, 0, canvas.width, canvas.height),
-            mono = document.getElementById('mono').checked,
-            invert = document.getElementById('invert').checked,
+            mono    = document.getElementById('mono').checked,
+            invert  = document.getElementById('invert').checked,
             rWeight = parseFloat(document.getElementById('r_weight').value, 10) || 0.0,
             gWeight = parseFloat(document.getElementById('g_weight').value, 10) || 0.0,
             bWeight = parseFloat(document.getElementById('b_weight').value, 10) || 0.0;

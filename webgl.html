@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>WebGL Video Effects Demo</title>
+
+<link type="text/css" href="jquery/css/ui-lightness/jquery-ui-1.8.16.custom.css" rel="stylesheet">
+<script src="jquery/js/jquery-1.6.2.min.js" type="text/javascript"></script>
+<script src="jquery/js/jquery-ui-1.8.16.custom.min.js" type="text/javascript"></script>
+<script src="Stats.js"></script>
+
+<style>
+body { font-size: small; }
+#video { display: none; }
+#progress { margin-left: 50px; }
+#movieclip { margin-right: 10px; }
+#effect { float: left; margin: 0px; }
+#slider { float: left; margin-left: 10px; margin-top: 3px; width: 150px; }
+#slider, #slider * { border: 1px solid #888; }
+</style>
+
+<script type="text/javascript">
+
+var slider;
+$(function() {
+  slider = $("#slider").slider();
+  slider.slider("value", 100);
+});
+
+var gl;
+var vertexBuffer;
+var texCoordBuffer;
+var videoTexture;
+var programs = {};
+
+function initBuffers() {
+  vertexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, 1,1, -1,1]), gl.STATIC_DRAW);
+
+  texCoordBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0, 1,0, 1,1, 0,1]), gl.STATIC_DRAW);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+}
+
+function createShader(id) {
+  var script = document.getElementById(id);
+  if (!script) return;
+
+  var src =
+    "#ifdef GL_ES\n" +
+    "precision highp float;\n" +
+    "precision highp int;\n" +
+    "#endif\n";
+  for (var child = script.firstChild; child; child = child.nextSibling) {
+    if (child.nodeType == 3) src += child.textContent;
+  }
+
+  var shader;
+  if (script.type == "x-shader/x-vertex") {
+    shader = gl.createShader(gl.VERTEX_SHADER);
+  } else if (script.type == "x-shader/x-fragment") {
+    shader = gl.createShader(gl.FRAGMENT_SHADER);
+  } else {
+    return null;
+  }
+  gl.shaderSource(shader, src);
+  gl.compileShader(shader);
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    alert("An error occurred compiling the shaders: " + gl.getShaderInfoLog(shader));
+    return null;
+  }
+
+  return shader;
+}
+
+function createProgram(vsId, fsId) {
+  var vs = createShader(vsId);
+  var fs = createShader(fsId);
+  if (!vs || !fs) return null;
+
+  var program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    alert("Unable to initialize the shader program.");
+    return null;
+  }
+  return program;
+}
+
+function initGL(canvas) {
+  try {
+    gl = canvas.getContext("experimental-webgl");
+  } catch (e) {
+  }
+  if (!gl) {
+    alert("Unable to initialize WebGL. Your browser may not support it.");
+    return;
+  }
+
+  initBuffers();
+
+  videoTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+function updateVideoTexture(mipmap, videoElement) {
+  gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mipmap ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+  if (mipmap) gl.generateMipmap(gl.TEXTURE_2D);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+function isPowerOfTwo(x) {
+  return (x & (x - 1)) == 0;
+}
+
+function drawScene(canvas, videoElement, effectElement) {
+  var effect = effectElement.value;
+  var mipmap = isPowerOfTwo(videoElement.videoWidth)
+            && isPowerOfTwo(videoElement.videoHeight)
+            && (effect == "polarcoord"
+             || effect == "twirl"
+             || effect == "ripple"
+             || effect == "opticscmpn"
+             /*|| effect == "tile"*/);
+  updateVideoTexture(mipmap, videoElement);
+
+  canvas.width = videoElement.videoWidth;
+  canvas.height = videoElement.videoHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+
+  var program = programs[effect];
+  if (!program) {
+    program = programs[effect] = createProgram("default-vs", effect+"-fs");
+  }
+  gl.useProgram(program);
+  var vertexLoc = gl.getAttribLocation(program, "vertex");
+  var texCoordLoc = gl.getAttribLocation(program, "texCoord");
+  var textureLoc = gl.getUniformLocation(program, "texture");
+  var argLoc = gl.getUniformLocation(program, "arg");
+  var sizeLoc = gl.getUniformLocation(program, "size");
+  var timeLoc = gl.getUniformLocation(program, "time");
+  gl.enableVertexAttribArray(vertexLoc);
+  gl.enableVertexAttribArray(texCoordLoc);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.vertexAttribPointer(vertexLoc, 2, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+  gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+  gl.uniform1i(textureLoc, 0);
+  if (argLoc) {
+    gl.uniform1f(argLoc, slider.slider("value")/100);
+  }
+  if (sizeLoc) {
+    gl.uniform2f(sizeLoc, canvas.width, canvas.height);
+  }
+  if (timeLoc) {
+    gl.uniform1f(timeLoc, videoElement.currentTime);
+  }
+
+  gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  gl.disableVertexAttribArray(vertexLoc);
+  gl.disableVertexAttribArray(texCoordLoc);
+
+}
+
+</script>
+
+<script id="default-vs" type="x-shader/x-vertex">
+  attribute vec2 vertex;
+  attribute vec2 texCoord;
+  varying vec2 vTexCoord;
+  void main(void) {
+    gl_Position = vec4(vertex, 0.0, 1.0);
+    vTexCoord = texCoord;
+  }
+</script>
+
+<script id="default-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  void main(void) {
+    gl_FragColor = texture2D(texture, vTexCoord);
+  }
+</script>
+
+<script id="invert-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  void main(void) {
+    vec4 color = texture2D(texture, vTexCoord);
+    gl_FragColor = vec4(mix(color.rgb, 1.0-color.rgb, arg), color.a);
+  }
+</script>
+
+<script id="monochrome-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  void main(void) {
+    vec4 color = texture2D(texture, vTexCoord);
+    float y = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+    gl_FragColor = vec4(mix(color.rgb, vec3(y), arg), color.a);
+  }
+</script>
+
+<script id="sepia-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  void main(void) {
+    vec4 color = texture2D(texture, vTexCoord);
+    float y = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+    gl_FragColor = vec4(mix(color.rgb, vec3(1.0,0.87,0.75)*y, arg), color.a);
+  }
+</script>
+
+<script id="brightness-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  void main(void) {
+    vec4 color = texture2D(texture, vTexCoord);
+    gl_FragColor = vec4(color.rgb+arg*2.0-1.0, color.a);
+  }
+</script>
+
+<script id="contrast-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  void main(void) {
+    vec4 color = texture2D(texture, vTexCoord);
+    float slope = arg > 0.5 ? 1.0/(2.0-2.0*arg) : 2.0*arg;
+    gl_FragColor = vec4((color.rgb-0.5)*slope+0.5, color.a);
+  }
+</script>
+
+<script id="zoomblur-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  uniform vec2 size;
+  void main(void) {
+    vec2 v = (0.5 - vTexCoord) * size;
+    float d = length(v);
+    float amount = arg * 0.5;
+
+    vec4 color = texture2D(texture, vTexCoord);
+
+    if (d > 0.0) {
+      v /= size;
+      int n = 0;
+      int n1 = int(min(amount*d+1.0, 40.0));
+      vec2 v1 = v*amount/float(n1);
+      for (int i = 1; i <= 40; ++i) {
+        if (i>n1) break;
+        color += texture2D(texture, vTexCoord + v1*float(i));
+      }
+      n += n1;
+      color /= float(n+1);
+    }
+
+    gl_FragColor = color;
+  }
+</script>
+
+<script id="spinblur-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  uniform vec2 size;
+  void main(void) {
+    vec4 color = texture2D(texture, vTexCoord);
+    vec2 v = size * (vTexCoord - 0.5);
+    float r = length(v);
+    float amount = arg * 3.14159265358979323846264 * 0.125;
+
+    if (r > 0.0) {
+      float arc = r*amount;
+      int n = int(min(arc+1.0, 20.0));
+      for (int i = 1; i < 20; ++i) {
+        if (i == n) break;
+
+        float t = amount*float(i)/float(n);
+
+        mat2 m1 = mat2(cos(t), sin(t), -sin(t), cos(t));
+        color += texture2D(texture, (v * m1) / size + 0.5);
+
+        mat2 m2 = mat2(cos(t), -sin(t), sin(t), cos(t));
+        color += texture2D(texture, (v * m2) / size + 0.5);
+      }
+
+      mat2 m1 = mat2(cos(amount), sin(amount), -sin(amount), cos(amount));
+      color += texture2D(texture, (v * m1) / size + 0.5) * 0.5;
+
+      mat2 m2 = mat2(cos(amount), -sin(amount), sin(amount), cos(amount));
+      color += texture2D(texture, (v * m2) / size + 0.5) * 0.5;
+
+      color /= float(2*n);
+    }
+
+    gl_FragColor = color;
+  }
+</script>
+
+<script id="mosaic-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  void main(void) {
+    if (arg > 0.0) {
+       float blockSize = arg*0.1;
+       gl_FragColor = texture2D(texture, (floor((vTexCoord-0.5)/blockSize)+0.5)*blockSize+0.5);
+    } else {
+       gl_FragColor = texture2D(texture, vTexCoord);
+    }
+  }
+</script>
+
+<script id="tile-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  void main(void) {
+    if (arg < 1.0) {
+      gl_FragColor = texture2D(texture, fract((vTexCoord-0.5)/(1.0-arg) + 0.5));
+    } else {
+      gl_FragColor = vec4(0.5, 0.5, 0.5, 1.0);
+    }
+  }
+</script>
+
+<script id="posterize-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  void main(void) {
+    vec4 color = texture2D(texture, vTexCoord);
+    if (arg > 0.0) {
+      float level = (1.0-arg)*9.0+1.0;
+      color.rgb = floor(color.rgb * level + 0.5) / level;
+    }
+    gl_FragColor = color;
+  }
+</script>
+
+<script id="scatter-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  uniform vec2 size;
+
+  float rand1(vec2 coord, float seed) {
+    return fract(sin(dot(coord, vec2(12.9898, 78.233)) + seed) * 43758.5453);
+  }
+
+  void main(void) {
+    vec2 xy = gl_FragCoord.xy;
+    float nh = rand1(xy, 0.0);
+    float nv = rand1(xy, 100.0);
+    vec2 tc = (xy + (vec2(nh, nv)-0.5)*arg*100.0) / size;
+    gl_FragColor = texture2D(texture, tc);
+  }
+</script>
+
+<script id="scatter2-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  uniform vec2 size;
+  uniform float time;
+
+  float rand1(vec2 coord, float seed) {
+    return fract(sin(dot(coord, vec2(12.9898, 78.233)) + seed) * 43758.5453);
+  }
+
+  void main(void) {
+    vec2 xy = gl_FragCoord.xy;
+    float nh = rand1(xy, time);
+    float nv = rand1(xy, 100.0-time);
+    vec2 tc = (xy + (vec2(nh, nv)-0.5)*arg*100.0) / size;
+    gl_FragColor = texture2D(texture, tc);
+  }
+</script>
+
+<script id="sobel-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  uniform vec2 size;
+  void main(void) {
+    float dx = 1.0/size.x;
+    float dy = 1.0/size.y;
+
+    vec3 c1 = texture2D(texture, vTexCoord + vec2( dx, -dy)).rgb
+            + texture2D(texture, vTexCoord + vec2( dx, 0.0)).rgb * 2.0
+            + texture2D(texture, vTexCoord + vec2( dx,  dy)).rgb
+            - texture2D(texture, vTexCoord + vec2(-dx, -dy)).rgb
+            - texture2D(texture, vTexCoord + vec2(-dx, 0.0)).rgb * 2.0
+            - texture2D(texture, vTexCoord + vec2(-dx,  dy)).rgb;
+
+    vec3 c2 = texture2D(texture, vTexCoord + vec2(-dx,  dy)).rgb
+            + texture2D(texture, vTexCoord + vec2(0.0,  dy)).rgb * 2.0
+            + texture2D(texture, vTexCoord + vec2( dx,  dy)).rgb
+            - texture2D(texture, vTexCoord + vec2(-dx, -dy)).rgb
+            - texture2D(texture, vTexCoord + vec2(0.0, -dy)).rgb * 2.0
+            - texture2D(texture, vTexCoord + vec2( dx, -dy)).rgb;
+
+    float a = texture2D(texture, vTexCoord).a;
+    gl_FragColor = vec4(max(vec3(0.0), sqrt(c1*c1+c2*c2)-(1.0-arg))/arg, a);
+  }
+</script>
+
+<script id="polarcoord-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  uniform vec2 size;
+  void main(void) {
+    vec2 coordRect = vTexCoord * size;
+    vec2 center = size * 0.5;
+    vec2 fromCenter = coordRect - center;
+
+    vec2 coordPolar = vec2(
+            atan(fromCenter.x, fromCenter.y) * size.x / (2.0*3.14159265358979323846264) + center.x,
+            length(fromCenter) * 2.0);
+
+    vec2 tc = mix(coordRect, coordPolar, arg) / size;
+    if (all(greaterThanEqual(tc, vec2(0.0))) && all(lessThanEqual(tc, vec2(1.0)))) {
+      gl_FragColor = texture2D(texture, tc);
+    } else {
+      gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    }
+  }
+</script>
+
+<script id="twirl-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  uniform vec2 size;
+  void main(void) {
+    vec2 xy = gl_FragCoord.xy;
+    vec2 center = size * 0.5;
+    float radius = 0.5 * max(size.x, size.y);
+    float d = distance(xy, center);
+    float a = (arg-0.5) * 4.0 * 3.14159265358979323846264 * pow(max(0.0, radius-d)/radius, 2.0);
+    float cos = cos(a);
+    float sin = sin(a);
+    vec2 tc = (mat2(cos,-sin,sin,cos)*(xy-center)+center) / size;
+    gl_FragColor = texture2D(texture, tc);
+  }
+</script>
+
+<script id="ripple-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  uniform vec2 size;
+  uniform float time;
+  void main(void) {
+    vec2 coordOffset = -size*0.5;
+    vec2 v = gl_FragCoord.xy + coordOffset;
+    float d = length(v);
+    float radius = 0.5 * max(size.x, size.y);
+
+    v += max(0.0, (radius-d)/radius) * arg * 30.0 * cos(3.14159265358979323846264*(d/20.0 - 2.0*time));
+
+    vec2 texCoord = (v - coordOffset) / size;
+    gl_FragColor = texture2D(texture, texCoord);
+  }
+</script>
+
+<script id="opticscmpn-fs" type="x-shader/x-fragment">
+  varying vec2 vTexCoord;
+  uniform sampler2D texture;
+  uniform float arg;
+  uniform vec2 size;
+  const float PI = 3.14159265358979323846264;
+  void main(void) {
+    if (arg == 0.5) {
+      gl_FragColor = texture2D(texture, vTexCoord);
+    } else if (arg == 1.0) {
+      gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    } else if (arg > 0.5) {
+      vec2 coordOffset = size*0.5;
+      float fd = 500.0 / tan((arg-0.5) * PI);
+
+      vec2 v = gl_FragCoord.xy - coordOffset;
+      float d = length(v);
+      vec2 xy = v/d * fd*tan(clamp(d/fd, -0.5*PI, 0.5*PI)) + coordOffset;
+      vec2 tc = xy/size;
+      if (all(greaterThanEqual(tc, vec2(0.0))) && all(lessThanEqual(tc, vec2(1.0)))) {
+        gl_FragColor = texture2D(texture, xy/size);
+      } else {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+      }
+    } else {
+      vec2 coordOffset = size*0.5;
+      float fd = 500.0 / tan((0.5-arg) * PI);
+
+      vec2 v = gl_FragCoord.xy - coordOffset;
+      float d = length(v);
+      vec2 xy = v/d * fd*atan(d/fd) + coordOffset;
+      gl_FragColor = texture2D(texture, xy/size);
+    }
+  }
+</script>
+</head>
+<body>
+<script>
+  window.onload = function () {
+    var canvas = document.getElementById("canvas"),
+        videoElement = document.getElementById("video"),
+        fileElement = document.getElementById("file"),
+        effectElement = document.getElementById("effect"),
+        progressElement = document.getElementById("progress"),
+        playElement = document.getElementById("play"),
+        audioElement = document.getElementById("audio"),
+        playing = true;
+
+    videoElement.addEventListener("canplay", startDrawFrame, true);
+    playElement.addEventListener("click", playPause, false);
+    audioElement.addEventListener("click", function() { videoElement.muted = !audio.checked; }, false);
+    fileElement.addEventListener("change", loadLocalFile, false);
+
+    function startDrawFrame () {
+
+      var stats = Stat.initStats();
+      
+      initGL(canvas);
+      if (!gl) return;
+
+      (function drawFrame () {
+
+        stats.begin();
+
+        var frameId = window.requestAnimationFrame(drawFrame, canvas);
+        if (!playing) window.cancelAnimationFrame(frameId);
+
+        drawScene(canvas, videoElement, effectElement);
+
+        updateProgress(progressElement, videoElement);
+
+        stats.end();
+
+      }());    
+    }
+
+    function playPause() {
+      var videoElement = document.getElementById("video");
+      if (!videoElement.paused) {
+        playing = false;
+        videoElement.pause();
+      } else {
+        playing = true;
+        videoElement.play();
+        startDrawFrame();
+      }
+    }
+
+    function updateProgress(progressElement, videoElement) {
+      progressElement.frameCount = 30;
+      var buffered = videoElement.buffered;
+      if (buffered.length == 1 && ++progressElement.frameCount > 30) {
+        progressElement.frameCount = 0;
+        var percent = parseInt(1000 * buffered.end(0) / videoElement.duration) / 10;
+        if (percent < 99.9) {
+          progressElement.textContent = "loading... "+percent+"%";
+        } else {
+          progressElement.textContent = "";
+        }
+      }
+    }
+
+    function loadLocalFile() {
+      var fileElement = document.getElementById("file");
+      var url;
+      if (window.webkitURL) {
+        url = window.webkitURL.createObjectURL(fileElement.files[0]);
+      } else if (window.URL) {
+        url = window.URL.createObjectURL(fileElement.files[0]);
+      } else {
+        url = window.createObjectURL(fileElement.files[0]);
+      }
+      if (url) {
+        var videoElement = document.getElementById("video");
+        videoElement.src = url;
+        videoElement.play();
+      }
+    }
+
+  };
+</script>
+<div>
+  <input id="play" type="button" value="Play / Pause">
+  <input id="audio" type="checkbox" checked><label for="audio">Audio</label>
+  <span id="progress"></span>
+</div>
+<canvas id="canvas">
+  Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
+</canvas>
+<video id="video" loop autoplay>
+  Your browser doesn't appear to support the HTML5 <code>&lt;video&gt;</code> element.
+  <source src="./assets/movieclip.mp4" type="video/mp4"/>
+</video>
+<div>
+  <span><input id="file" type="file"></span>
+</div>
+<br>
+<select id="effect">
+  <option value="default">None
+  <option value="invert">Invert
+  <option value="monochrome">Monochrome
+  <option value="sepia">Sepia
+  <option value="brightness">Brightness
+  <option value="contrast">Contrast
+  <option value="zoomblur">Zoom Blur
+  <option value="spinblur">Spin Blur
+  <option value="mosaic">Mosaic
+  <option value="tile">Tile
+  <option value="posterize">Posterize
+  <option value="scatter">Scatter
+  <option value="scatter2">Scatter (Randomness)
+  <option value="sobel">Sobel
+  <option value="polarcoord">Polar Coordinates
+  <option value="twirl">Twirl
+  <option value="ripple">Ripple
+  <option value="opticscmpn">Optics Compensation
+</select>
+<div id="slider"></div>
+<br clear="both">
+<br>
+<p>
+使い方
+<ul>
+<li>WebM, OggまたはMP4が使用可能 (どちらが使用可能かはブラウザにより異なる)。Oggは未確認。</li>
+<li>サイズが2の累乗だと、いくつかのエフェクトが少し綺麗になる。</li>
+<li>エフェクトを選んでスライダーで適用量を調節する。</li>
+<li>Zoom Blur と Spin Blur は最初だけ少し時間がかかる場合がある。 </li>
+</ul>
+</p>
+</body>
+</html>
