@@ -6,7 +6,7 @@ function WebGL () {
   this.programs = {};
 }
 
-WebGL.prototype.initGL = function (canvas) {
+WebGL.prototype.initGL = function (canvas, drawFrame) {
 
   try {
     this.gl = canvas.getContext("experimental-webgl");
@@ -24,6 +24,13 @@ WebGL.prototype.initGL = function (canvas) {
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
     this.gl.bindTexture(this.gl.TEXTURE_2D, null);  
+
+    if (Object.keys(this.programs).length === 0) {
+      // run drawFrame after create programs.
+      this.createPrograms(drawFrame);
+    } else {
+      drawFrame();
+    }
 
     return true;
 
@@ -49,7 +56,103 @@ WebGL.prototype.initBuffers = function () {
 }
 
 
-WebGL.prototype.createShader = function (shaderType, shaderName, source) {
+WebGL.prototype.createPrograms = function (drawFrame) {
+
+  var shaders = ['shaders/default.vs',
+                 'shaders/default.fs',
+                 'shaders/grayscale.fs',
+                 'shaders/invert.fs',
+                 'shaders/monochrome.fs',
+                 'shaders/sepia.fs',
+                 'shaders/brightness.fs',
+                 'shaders/contrast.fs',
+                 'shaders/zoomblur.fs',
+                 'shaders/spinblur.fs',
+                 'shaders/mosaic.fs',
+                 'shaders/tile.fs',
+                 'shaders/posterize.fs',
+                 'shaders/scatter.fs',
+                 'shaders/scatter2.fs',
+                 'shaders/sobel.fs',
+                 'shaders/polarcoord.fs',
+                 'shaders/twirl.fs',
+                 'shaders/ripple.fs',
+                 'shaders/opticscmpn.fs',
+                 ],
+      numShaders = shaders.length,
+      numComplete = 0,
+      fragmentShaders = {},
+      vertexShaders = {};
+      that = this;
+
+  function basename(path) {
+    return path.replace(/\\/g,'/').replace( /.*\//, '' );
+  }
+
+  this.loadShaders(
+    shaders, 
+    function (url, source) {
+      var shaderBaseName = basename(url),
+          shaderName = shaderBaseName.split('.')[0],
+          shaderType = shaderBaseName.split('.')[1];
+
+      if (shaderType === "vs") {
+        vertexShaders[shaderName] = that.createShader(shaderType, source);
+      } else if (shaderType === "fs") {
+        fragmentShaders[shaderName] = that.createShader(shaderType, source);;
+      }              
+
+      numComplete++;
+
+      // When all files have downloaded
+      if (numComplete == numShaders) {
+        // create program
+        for (var fsname in fragmentShaders) {
+          that.programs[fsname] = that.createProgram(vertexShaders['default'], fragmentShaders[fsname]);
+        }
+        // start draw
+        drawFrame();
+      }
+
+    }, 
+    function (url) {
+      alert('Failed to download "' + url + '"');
+    }
+  );
+}
+
+WebGL.prototype.loadShaders = function (urls, success, error) {
+  var numUrls = urls.length;
+  var numComplete = 0;
+
+  urls.forEach(function (url) {
+    this.loadShader(url, success, error);
+  }, this);  
+}
+
+WebGL.prototype.loadShader = function (url, success, error) {
+  // Set up an asynchronous request
+  var request = new XMLHttpRequest();
+  request.open('GET', url, true);
+
+  // Hook the event that gets called as the request progresses
+  request.onreadystatechange = function () {
+    // If the request is "DONE" (completed or failed)
+    if (request.readyState == 4) {
+      // If we got HTTP status 200 (OK)
+      if (request.status == 200) {
+        success(url, request.responseText)
+      } else { // Failed
+        error(url);
+      }
+    }
+  };
+
+  request.send(null);    
+}
+
+
+WebGL.prototype.createShader = function (shaderType, source) {
 
   var shader = null;
 
@@ -155,96 +258,4 @@ WebGL.prototype.drawScene = function (canvas, videoElement, effectElement, slide
   this.gl.disableVertexAttribArray(vertexLoc);
   this.gl.disableVertexAttribArray(texCoordLoc);
 
-}
-
-WebGL.prototype.getShader = function (url, success, error) {
-  // Set up an asynchronous request
-  var request = new XMLHttpRequest();
-  request.open('GET', url, true);
-
-  // Hook the event that gets called as the request progresses
-  request.onreadystatechange = function () {
-    // If the request is "DONE" (completed or failed)
-    if (request.readyState == 4) {
-      // If we got HTTP status 200 (OK)
-      if (request.status == 200) {
-        success(url, request.responseText)
-      } else { // Failed
-        error(url);
-      }
-    }
-  };
-
-  request.send(null);    
-}
-
-WebGL.prototype.getShaders = function (urls, success, error) {
-  var numUrls = urls.length;
-  var numComplete = 0;
-
-  urls.forEach(function (url, index, ar) {
-    this.getShader(url, success, error);
-  }, this);  
-}
-
-WebGL.prototype.loadShaders = function (success) {
-
-  var shaders = ['shaders/default.vs',
-                 'shaders/default.fs',
-                 'shaders/grayscale.fs',
-                 'shaders/invert.fs',
-                 'shaders/monochrome.fs',
-                 'shaders/sepia.fs',
-                 'shaders/brightness.fs',
-                 'shaders/contrast.fs',
-                 'shaders/zoomblur.fs',
-                 'shaders/spinblur.fs',
-                 'shaders/mosaic.fs',
-                 'shaders/tile.fs',
-                 'shaders/posterize.fs',
-                 'shaders/scatter.fs',
-                 'shaders/scatter2.fs',
-                 'shaders/sobel.fs',
-                 'shaders/polarcoord.fs',
-                 'shaders/twirl.fs',
-                 'shaders/ripple.fs',
-                 'shaders/opticscmpn.fs',
-                 ],
-      numShaders = shaders.length,
-      numComplete = 0,
-      fragmentShaders = {},
-      vertexShaders = {};
-      that = this;
-
-  function basename(path) {
-    return path.replace(/\\/g,'/').replace( /.*\//, '' );
-  }
-
-  this.getShaders(
-    shaders, 
-    function (url, source) {
-      var shaderBaseName = basename(url),
-          shaderName = shaderBaseName.split('.')[0],
-          shaderType = shaderBaseName.split('.')[1];
-
-      if (shaderType === "vs") {
-        vertexShaders[shaderName] = that.createShader(shaderType, shaderName, source);
-      } else if (shaderType === "fs") {
-        fragmentShaders[shaderName] = that.createShader(shaderType, shaderName, source);;
-      }              
-
-      numComplete++;
-      // When all files have downloaded
-      if (numComplete == numShaders) {
-        for (var fsname in fragmentShaders) {
-          that.programs[fsname] = that.createProgram(vertexShaders['default'], fragmentShaders[fsname]);
-        }
-        success();
-      }
-
-    }, 
-    function (url) {
-      alert('Failed to download "' + url + '"');
-    }
-  );
 }
