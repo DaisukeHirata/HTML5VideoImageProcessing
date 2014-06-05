@@ -539,8 +539,7 @@ function drawScene(canvas, videoElement, effectElement) {
         effectElement = document.getElementById("effect"),
         progressElement = document.getElementById("progress"),
         playElement = document.getElementById("play"),
-        audioElement = document.getElementById("audio"),
-        playing = true;
+        audioElement = document.getElementById("audio");
 
     videoElement.addEventListener("canplay", startDrawFrame, true);
     playElement.addEventListener("click", playPause, false);
@@ -559,7 +558,7 @@ function drawScene(canvas, videoElement, effectElement) {
         stats.begin();
 
         var frameId = window.requestAnimationFrame(drawFrame, canvas);
-        if (!playing) window.cancelAnimationFrame(frameId);
+        if (videoElement.paused) window.cancelAnimationFrame(frameId);
 
         drawScene(canvas, videoElement, effectElement);
 
@@ -573,10 +572,8 @@ function drawScene(canvas, videoElement, effectElement) {
     function playPause() {
       var videoElement = document.getElementById("video");
       if (!videoElement.paused) {
-        playing = false;
         videoElement.pause();
       } else {
-        playing = true;
         videoElement.play();
         startDrawFrame();
       }
@@ -657,7 +654,7 @@ function drawScene(canvas, videoElement, effectElement) {
 <p>
 使い方
 <ul>
-<li>WebM, OggまたはMP4が使用可能 (どちらが使用可能かはブラウザにより異なる)。Oggは未確認。</li>
+<li>WebM, OggまたはMP4が使用可能 (どちらが使用可能かはブラウザにより異なる)。</li>
 <li>サイズが2の累乗だと、いくつかのエフェクトが少し綺麗になる。</li>
 <li>エフェクトを選んでスライダーで適用量を調節する。</li>
 <li>Zoom Blur と Spin Blur は最初だけ少し時間がかかる場合がある。 </li>
