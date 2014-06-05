@@ -4,9 +4,14 @@ function WebGL () {
   this.vertexBuffer = null;
   this.texCoordBuffer = null;
   this.programs = {};
+  this.fragmentShaders = {};
+  this.vertexShaders = {};
 }
 
 WebGL.prototype.initGL = function (canvas) {
+
+  this.loadTest();
+
   try {
     this.gl = canvas.getContext("experimental-webgl");
   } catch (e) {
@@ -166,4 +171,121 @@ WebGL.prototype.drawScene = function (canvas, videoElement, effectElement, slide
   this.gl.disableVertexAttribArray(vertexLoc);
   this.gl.disableVertexAttribArray(texCoordLoc);
 
+}
+
+WebGL.prototype.loadShader = function (url, success, error) {
+  // Set up an asynchronous request
+  var request = new XMLHttpRequest();
+  request.open('GET', url, true);
+
+  // Hook the event that gets called as the request progresses
+  request.onreadystatechange = function () {
+    // If the request is "DONE" (completed or failed)
+    if (request.readyState == 4) {
+      // If we got HTTP status 200 (OK)
+      if (request.status == 200) {
+        success(url, request.responseText)
+      } else { // Failed
+        error(url);
+      }
+    }
+  };
+
+  request.send(null);    
+}
+
+WebGL.prototype.loadShaders = function (urls, success, error) {
+  var numUrls = urls.length;
+  var numComplete = 0;
+
+  urls.forEach(function (url, index, ar) {
+    this.loadShader(url, success, error);
+  }, this);  
+}
+
+WebGL.prototype.loadTest = function () {
+
+  var shaders = ['shaders/default.vs',
+                 'shaders/grayscale.fs',
+                 'shaders/grayscale2.fs',
+                 'shaders/grayscale3.fs'],
+      numShaders = shaders.length,
+      numComplete = 0
+      that = this;
+
+  this.loadShaders(
+    shaders, 
+    function (url, source) {
+      numComplete++;
+
+      that.createShader2(url, source);
+
+      // When all files have downloaded
+      if (numComplete == numShaders) {
+        console.log('completed');
+        for (var fsname in that.fragmentShaders) {
+          that.programs[fsname] = that.createProgram2('default', fsname);
+        }
+      }
+
+    }, 
+    function (url) {
+      alert('Failed to download "' + url + '"');
+    }
+  );
+}
+
+WebGL.prototype.createShader2 = function (url, source) {
+
+  var shader = null,
+      shaderBaseName = basename(url),
+      shaderName = shaderBaseName.split('.')[0],
+      shaderType = shaderBaseName.split('.')[1];
+
+  function basename(path) {
+    return path.replace(/\\/g,'/').replace( /.*\//, '' );
+  }
+
+  if (shaderType === "vs") {
+    shader = this.gl.createShader(this.gl.VERTEX_SHADER);
+  } else if (shaderType === "fs") {
+    shader = this.gl.createShader(this.gl.FRAGMENT_SHADER);
+  }
+
+  if (shader) {
+    this.gl.shaderSource(shader, source);
+    this.gl.compileShader(shader);
+
+    if (this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+      if (shaderType === "vs") {
+        this.vertexShaders[shaderName] = shader;
+      } else if (shaderType === "fs") {
+        this.fragmentShaders[shaderName] = shader;
+      }        
+      
+    } else {
+      alert("An error occurred compiling the shaders: " + this.gl.getShaderInfoLog(shader));
+      shader = null;
+    }
+  }
+
+  return shader;
+}
+
+
+WebGL.prototype.createProgram2 = function (vsname, fsname) {
+  var vs = this.vertexShaders[vsname];
+  var fs = this.fragmentShaders[fsname];
+  if (!vs || !fs) return null;
+
+  var program = this.gl.createProgram();
+  this.gl.attachShader(program, vs);
+  this.gl.attachShader(program, fs);
+  this.gl.linkProgram(program);
+
+  if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+    alert("Unable to initialize the shader program.");
+    return null;
+  }
+  return program;
 }
