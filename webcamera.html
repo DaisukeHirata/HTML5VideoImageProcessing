@@ -1,0 +1,93 @@
+<!DOCTYPE html> 
+<html> 
+	<head> 
+		<meta charset="utf-8">
+		<title>カメラ　テスト</title> 
+		<script type="text/javascript" src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
+		<style>
+			img,canvas,video {
+				/*
+				width:500px;
+				height:500px;
+				*/
+				background-color:black;
+			}
+			button {
+				border:1px solid #eeeeee;
+				width:100px;
+				height:30px;
+				color:white;
+			}
+			#capture {
+				background-color:#008800;
+			}
+			#stop {
+				background-color:#880000;
+			}
+
+		</style>
+	</head> 
+	<body> 
+		<video autoplay width="640" height="480"></video>
+		<img src="" width="640" height="480" >
+		<canvas style="display:none;" width="640" height="480"></canvas>
+		<div id="wrapper"> 
+			<button id="capture">capture</button>
+			<button id="stop">stop</button>
+		</div>
+
+	</body>
+	<script>
+		var video = document.querySelector('video');
+		var canvas = document.querySelector('canvas');
+		var ctx = canvas.getContext('2d');
+		var localMediaStream = null;
+
+		//カメラ使えるかチェック
+		var hasGetUserMedia = function() {
+			return !!(navigator.getUserMedia || navigator.webkitGetUserMedia ||
+				navigator.mozGetUserMedia || navigator.msGetUserMedia);
+		}
+		//エラー
+		var onFailSoHard = function(e) {
+			console.log('エラー!', e);
+		};
+
+		//カメラ画像キャプチャ
+		var snapshot = function() {
+			if (localMediaStream) {
+				ctx.drawImage(video, 0, 0);
+				document.querySelector('img').src = canvas.toDataURL('image/webp');
+			}
+		}
+
+		if (hasGetUserMedia()) {
+			console.log("カメラ OK");
+		} else {
+			alert("未対応ブラウザです。");
+		}
+
+
+		window.URL = window.URL || window.webkitURL;
+		navigator.getUserMedia  = navigator.getUserMedia || navigator.webkitGetUserMedia ||
+								  navigator.mozGetUserMedia || navigator.msGetUserMedia;
+
+		navigator.getUserMedia({video: true}, function(stream) {
+		  video.src = window.URL.createObjectURL(stream);
+		  localMediaStream = stream;
+		}, onFailSoHard);
+
+		//ボタンイベント
+		$("#capture").click(function() {
+			snapshot();
+		});
+		$("#stop").click(function() {
+			localMediaStream.stop();
+		});
+		$("video").click(function() {
+			snapshot();
+		});
+
+	</script>
+</html>
+
