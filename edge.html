@@ -12,7 +12,7 @@
   </head>
   <body>
     <header>Avoid cross domain security error. $ http-server -p 8000 </header>
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" width="600" height="360"></canvas>
     <input id="mono" type="checkbox" name="mono"/>
     <input id="invert" type="checkbox" name="invert"/>
     <input id="r_weight" type="range" value="1.0" min="0.0" max="3" step="0.1"/>
@@ -44,8 +44,6 @@
         stats.begin();
 
         window.requestAnimationFrame(drawFrame, canvas);
-        canvas.width = video.videowidth;
-        canvas.height = video.videoheight;
         context.drawImage(video, 0, 0);
 
         var imageData       = context.getImageData(0, 0, canvas.width, canvas.height),

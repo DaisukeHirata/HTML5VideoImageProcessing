@@ -24,6 +24,7 @@
     <script src="utils.js"></script>
     <script src="Stats.js"></script>
     <script src="Filters.js"></script>
+    <script src="camera.js"></script>
     <script>
     window.onload = function () {
 
@@ -31,6 +32,8 @@
           context = canvas.getContext('2d'),
           video = document.getElementById('movieclip'),
           stats = Stat.initStats();
+          
+      Camera.createPlayButton(video);
 
       (function drawFrame () {
 
