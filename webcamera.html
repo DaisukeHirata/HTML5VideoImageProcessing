@@ -1,93 +1,54 @@
-<!DOCTYPE html> 
-<html> 
-	<head> 
-		<meta charset="utf-8">
-		<title>カメラ　テスト</title> 
-		<script type="text/javascript" src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
-		<style>
-			img,canvas,video {
-				/*
-				width:500px;
-				height:500px;
-				*/
-				background-color:black;
-			}
-			button {
-				border:1px solid #eeeeee;
-				width:100px;
-				height:30px;
-				color:white;
-			}
-			#capture {
-				background-color:#008800;
-			}
-			#stop {
-				background-color:#880000;
-			}
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Video Frames</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+      #cameraimage {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>Avoid cross domain security error. $ http-server -p 8000 -c-1 </header>
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <video id="cameraimage" autoplay></video>
+    <button id="play">play</button>
+    <button id="stop">stop</button>
+  
+    <script src="utils.js"></script>
+    <script src="Stats.js"></script>
+    <script src="camera.js"></script>
+    <script>
+    window.onload = function () {
+      var canvas = document.getElementById('canvas'),
+          context = canvas.getContext('2d'),
+          video = document.getElementById('cameraimage'),
+          play = document.getElementById('play'),
+          stop = document.getElementById('stop'),
+          localMediaStream = null;
+          stats = Stat.initStats();
 
-		</style>
-	</head> 
-	<body> 
-		<video autoplay width="640" height="480"></video>
-		<img src="" width="640" height="480" >
-		<canvas style="display:none;" width="640" height="480"></canvas>
-		<div id="wrapper"> 
-			<button id="capture">capture</button>
-			<button id="stop">stop</button>
-		</div>
+      play.addEventListener('click', function () {
+        Camera.play(video);
+      }, false);      
 
-	</body>
-	<script>
-		var video = document.querySelector('video');
-		var canvas = document.querySelector('canvas');
-		var ctx = canvas.getContext('2d');
-		var localMediaStream = null;
+      stop.addEventListener('click', function () {
+        Camera.stop();
+      }, false);      
 
-		//カメラ使えるかチェック
-		var hasGetUserMedia = function() {
-			return !!(navigator.getUserMedia || navigator.webkitGetUserMedia ||
-				navigator.mozGetUserMedia || navigator.msGetUserMedia);
-		}
-		//エラー
-		var onFailSoHard = function(e) {
-			console.log('エラー!', e);
-		};
+      Camera.play(video);
 
-		//カメラ画像キャプチャ
-		var snapshot = function() {
-			if (localMediaStream) {
-				ctx.drawImage(video, 0, 0);
-				document.querySelector('img').src = canvas.toDataURL('image/webp');
-			}
-		}
+      (function drawFrame () {
+        stats.begin();
 
-		if (hasGetUserMedia()) {
-			console.log("カメラ OK");
-		} else {
-			alert("未対応ブラウザです。");
-		}
+        window.requestAnimationFrame(drawFrame, canvas);
+        context.drawImage(video, 0, 0);
 
-
-		window.URL = window.URL || window.webkitURL;
-		navigator.getUserMedia  = navigator.getUserMedia || navigator.webkitGetUserMedia ||
-								  navigator.mozGetUserMedia || navigator.msGetUserMedia;
-
-		navigator.getUserMedia({video: true}, function(stream) {
-		  video.src = window.URL.createObjectURL(stream);
-		  localMediaStream = stream;
-		}, onFailSoHard);
-
-		//ボタンイベント
-		$("#capture").click(function() {
-			snapshot();
-		});
-		$("#stop").click(function() {
-			localMediaStream.stop();
-		});
-		$("video").click(function() {
-			snapshot();
-		});
-
-	</script>
+        stats.end();
+      }());
+    };
+    </script>
+  </body>
 </html>
-
