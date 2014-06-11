@@ -20,3 +20,23 @@ Camera.play = function(video) {
 Camera.stop = function() {
   Camera.localMediaStream.stop();
 }
+
+Camera.createPlayButton = function(video) {
+
+  var play = document.createElement('button'),
+      stop = document.createElement('button');
+
+  play.innerHTML = 'play camera';
+  stop.innerHTML = 'stop camera';
+
+  play.addEventListener('click', function () {
+    Camera.play(video);
+  }, false);      
+
+  stop.addEventListener('click', function () {
+    Camera.stop();
+  }, false);      
+
+  document.body.appendChild(play);
+  document.body.appendChild(stop);
+};

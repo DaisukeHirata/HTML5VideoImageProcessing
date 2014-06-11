@@ -12,9 +12,9 @@
   </head>
   <body>
     <header>Avoid cross domain security error. $ http-server -p 8000 </header>
-    <canvas id="canvas" width="600" height="360"></canvas>
+    <canvas id="canvas"></canvas>
 
-    <video id="movieclip" width="640" height="360" autoplay>
+    <video id="movieclip" autoplay>
       <source src="./assets/movieclip.mp4" type="video/mp4"/>
       <source src="./assets/movieclip.webm" type="video/webm"/>
       <source src="./assets/movieclip.ogv" type="video/ogg"/>
@@ -23,6 +23,7 @@
     <script src="utils.js"></script>
     <script src="Stats.js"></script>
     <script src="Filters.js"></script>
+    <script src="camera.js"></script>
     <script>
     window.onload = function () {
 
@@ -31,11 +32,15 @@
           video = document.getElementById('movieclip'),
           stats = Stat.initStats();
 
+      Camera.createPlayButton(video);
+
       (function drawFrame () {
 
         stats.begin();
-
+        
         window.requestAnimationFrame(drawFrame, canvas);
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         context.drawImage(video, 0, 0);
 
         var imageData = context.getImageData(0, 0, canvas.width, canvas.height);

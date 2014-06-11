@@ -5,17 +5,19 @@
     <title>Video Frames</title>
     <link rel="stylesheet" href="style.css">
     <style>
-      #cameraimage {
+      #movieclip {
         display: none;
       }
     </style>
   </head>
   <body>
     <header>Avoid cross domain security error. $ http-server -p 8000 -c-1 </header>
-    <canvas id="canvas" width="640" height="480"></canvas>
-    <video id="cameraimage" autoplay></video>
-    <button id="play">play</button>
-    <button id="stop">stop</button>
+    <canvas id="canvas"></canvas>
+    <video id="movieclip" autoplay>
+      <source src="./assets/movieclip.mp4" type="video/mp4"/>
+      <source src="./assets/movieclip.webm" type="video/webm"/>
+      <source src="./assets/movieclip.ogv" type="video/ogg"/>
+    </video>
   
     <script src="utils.js"></script>
     <script src="Stats.js"></script>
@@ -24,26 +26,17 @@
     window.onload = function () {
       var canvas = document.getElementById('canvas'),
           context = canvas.getContext('2d'),
-          video = document.getElementById('cameraimage'),
-          play = document.getElementById('play'),
-          stop = document.getElementById('stop'),
-          localMediaStream = null;
+          video = document.getElementById('movieclip'),
           stats = Stat.initStats();
 
-      play.addEventListener('click', function () {
-        Camera.play(video);
-      }, false);      
-
-      stop.addEventListener('click', function () {
-        Camera.stop();
-      }, false);      
-
-      Camera.play(video);
+      Camera.createPlayButton(video);
 
       (function drawFrame () {
         stats.begin();
 
         window.requestAnimationFrame(drawFrame, canvas);
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         context.drawImage(video, 0, 0);
 
         stats.end();

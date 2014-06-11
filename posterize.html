@@ -23,6 +23,7 @@
   
     <script src="utils.js"></script>
     <script src="Stats.js"></script>
+    <script src="camera.js"></script>
     <script>
     window.onload = function () {
 
@@ -75,7 +76,8 @@
         }
       }
 
-      var callCount = 0;
+      Camera.createPlayButton(video);
+
       (function drawFrame () {
 
         stats.begin();

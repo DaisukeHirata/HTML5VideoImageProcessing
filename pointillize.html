@@ -26,6 +26,7 @@
   
     <script src="utils.js"></script>
     <script src="Stats.js"></script>
+    <script src="camera.js"></script>
     <script>
     window.onload = function () {
 
@@ -35,6 +36,8 @@
           copyContext = copyCanvas.getContext('2d'),
           video = document.getElementById('movieclip'),
           stats = Stat.initStats();
+
+      Camera.createPlayButton(video);
 
       function createCopyCanvas (canvas) {
         var copy = document.createElement('canvas');
@@ -109,6 +112,8 @@
         stats.begin();
 
         window.requestAnimationFrame(drawFrame, canvas);
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         copyContext.drawImage(video, 0, 0);
 
         var radius = parseInt(document.getElementById('radius').value, 10) || 1,

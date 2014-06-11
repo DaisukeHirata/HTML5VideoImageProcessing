@@ -24,6 +24,7 @@
   
     <script src="utils.js"></script>
     <script src="Stats.js"></script>
+    <script src="camera.js"></script>
     <script>
     window.onload = function () {
 
@@ -125,6 +126,8 @@
           pixel += 8;
         }
       }
+
+      Camera.createPlayButton(video);
 
       (function drawFrame () {
 
